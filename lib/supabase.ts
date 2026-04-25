@@ -37,11 +37,14 @@ export type Pick = {
   created_at: string
 }
 
+export const HOUSE_EDGE = 0.10 // 10% para a casa
+
 export function calcOdds(pool_sim: number, pool_nao: number) {
   const total = pool_sim + pool_nao
   if (total === 0) return { sim: 2.0, nao: 2.0, pct_sim: 50 }
-  const sim = pool_nao > 0 ? total / pool_sim : 999
-  const nao = pool_sim > 0 ? total / pool_nao : 999
+  const net = total * (1 - HOUSE_EDGE) // bolo líquido após taxa
+  const sim = pool_nao > 0 ? net / pool_sim : 999
+  const nao = pool_sim > 0 ? net / pool_nao : 999
   const pct_sim = Math.round((pool_sim / total) * 100)
   return {
     sim: Math.round(sim * 100) / 100,
