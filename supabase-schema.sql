@@ -85,7 +85,7 @@ begin
   for v_pick in
     select * from picks where bet_id = p_bet_id and side = p_result
   loop
-    v_payout := round((v_pick.amount / v_winner_pool) * v_total, 2);
+    v_payout := round((v_pick.amount / v_winner_pool) * v_total * 0.90, 2); -- 10% taxa da casa
     update picks set payout = v_payout where id = v_pick.id;
   end loop;
 
