@@ -21,24 +21,47 @@ export default function Home() {
   const [showAuth, setShowAuth] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      setUser(session?.user ?? null)
+    // Handle OAuth redirect — Supabase puts tokens in the URL hash
+    const handleAuthRedirect = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setUser(session.user)
+        // Ensure profile exists
+        await supabase.from('profiles').upsert({
+          id: session.user.id,
+          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+          avatar_url: session.user.user_metadata?.avatar_url || null,
+        }, { onConflict: 'id', ignoreDuplicates: true })
+      }
       setCheckingAuth(false)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_: any, session: any) => {
+    }
+
+    handleAuthRedirect()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
+      if (session?.user) {
+        // Upsert profile on every auth state change
+        await supabase.from('profiles').upsert({
+          id: session.user.id,
+          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+          avatar_url: session.user.user_metadata?.avatar_url || null,
+        }, { onConflict: 'id', ignoreDuplicates: true })
+        setCheckingAuth(false)
+      }
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
   async function loginWithGoogle() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { redirectTo: `${window.location.origin}` }
     })
   }
 
-  async function handleEmailLogin(e: React.FormEvent) {
+  async function handleEmailAuth(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError(''); setSuccess('')
     try {
@@ -99,7 +122,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-      {/* Logo */}
       <div className="mb-10 text-center">
         <div className="font-display text-6xl font-extrabold text-[#00D4A0] text-glow tracking-tight mb-2">MyBet</div>
         <p className="text-[#4A6658] text-sm">Apostas privadas entre amigos · Odds ao vivo</p>
@@ -108,21 +130,24 @@ export default function Home() {
       {/* User bar */}
       <div className="w-full max-w-md mb-4">
         {user ? (
-          <div className="card p-3 flex items-center justify-between">
+          <div className="card p-3 flex items-center justify-between animate-fade-in">
             <div className="flex items-center gap-3">
               {user.user_metadata?.avatar_url
-                ? <img src={user.user_metadata.avatar_url} className="w-8 h-8 rounded-full" alt="" />
-                : <div className="w-8 h-8 rounded-full bg-[#1E2D24] flex items-center justify-center text-[#00D4A0] font-bold text-sm">
+                ? <img src={user.user_metadata.avatar_url} className="w-9 h-9 rounded-full border-2 border-[#00D4A0]" alt="" />
+                : <div className="w-9 h-9 rounded-full bg-[#1E2D24] flex items-center justify-center text-[#00D4A0] font-bold">
                     {(user.user_metadata?.full_name || user.email || 'U')[0].toUpperCase()}
                   </div>
               }
-              <span className="text-sm text-white font-medium truncate max-w-[140px]">
-                {user.user_metadata?.full_name || user.email}
-              </span>
+              <div>
+                <div className="text-sm text-white font-semibold truncate max-w-[160px]">
+                  {user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário'}
+                </div>
+                <div className="text-xs text-[#4A6658]">{user.email}</div>
+              </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => router.push('/profile')} className="btn btn-outline px-3 py-1.5 text-xs">Perfil</button>
-              <button onClick={() => supabase.auth.signOut()} className="btn btn-outline px-3 py-1.5 text-xs text-[#4A6658]">Sair</button>
+              <button onClick={() => router.push('/profile')} className="btn btn-green px-3 py-1.5 text-xs">Perfil</button>
+              <button onClick={() => supabase.auth.signOut().then(() => setUser(null))} className="btn btn-outline px-3 py-1.5 text-xs text-[#4A6658]">Sair</button>
             </div>
           </div>
         ) : (
@@ -130,11 +155,10 @@ export default function Home() {
             {!showAuth ? (
               <div className="card p-4 flex items-center justify-between">
                 <p className="text-xs text-[#4A6658]">Entre para salvar histórico e dívidas</p>
-                <button onClick={() => setShowAuth(true)} className="btn btn-outline px-3 py-1.5 text-xs">Entrar</button>
+                <button onClick={() => setShowAuth(true)} className="btn btn-green px-4 py-2 text-xs">Entrar</button>
               </div>
             ) : (
               <div className="card p-4 animate-slide-up">
-                {/* Auth tabs */}
                 <div className="flex border-b border-[#1E2D24] mb-4">
                   {(['login','signup'] as const).map(t => (
                     <button key={t} onClick={() => { setAuthTab(t); setError(''); setSuccess('') }}
@@ -144,7 +168,6 @@ export default function Home() {
                   ))}
                 </div>
 
-                {/* Google */}
                 <button onClick={loginWithGoogle} className="btn btn-outline w-full py-2.5 text-sm mb-3 gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -157,17 +180,16 @@ export default function Home() {
 
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex-1 h-px bg-[#1E2D24]" />
-                  <span className="text-xs text-[#4A6658]">ou</span>
+                  <span className="text-xs text-[#4A6658]">ou e-mail</span>
                   <div className="flex-1 h-px bg-[#1E2D24]" />
                 </div>
 
-                {/* Email form */}
-                <form onSubmit={handleEmailLogin} className="space-y-2">
+                <form onSubmit={handleEmailAuth} className="space-y-2">
                   {authTab === 'signup' && (
                     <input className="input text-sm" placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} required />
                   )}
                   <input className="input text-sm" type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} required />
-                  <input className="input text-sm" type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+                  <input className="input text-sm" type="password" placeholder="Senha (mínimo 6 caracteres)" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
                   {error && <p className="text-[#FF4D6A] text-xs">{error}</p>}
                   {success && <p className="text-[#00D4A0] text-xs">{success}</p>}
                   <button type="submit" disabled={loading} className="btn btn-green w-full py-2.5 text-sm">
@@ -175,8 +197,8 @@ export default function Home() {
                   </button>
                 </form>
 
-                <button onClick={() => setShowAuth(false)} className="mt-2 w-full text-xs text-[#4A6658] hover:text-white transition-colors">
-                  Continuar sem conta
+                <button onClick={() => setShowAuth(false)} className="mt-3 w-full text-xs text-[#4A6658] hover:text-white transition-colors py-1">
+                  Continuar sem conta →
                 </button>
               </div>
             )}
@@ -185,7 +207,7 @@ export default function Home() {
       </div>
 
       {/* Room card */}
-      <div className="card w-full max-w-md glow-green animate-slide-up">
+      <div className="card w-full max-w-md glow-green">
         <div className="flex border-b border-[#1E2D24]">
           {(['create','join'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
