@@ -2,17 +2,12 @@
   "name": "mybet",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
   "dependencies": {
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18",
     "@supabase/supabase-js": "^2.43.0",
-    "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1"
   },
   "devDependencies": {

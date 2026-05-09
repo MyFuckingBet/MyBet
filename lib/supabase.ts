@@ -15,19 +15,22 @@ export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) { return (getSupabase() as any)[prop] }
 })
 
-export const HOUSE_EDGE = 0.10
-
 export type BetType = 'binary' | 'timeline' | 'choice'
+
+export type Profile = {
+  id: string; name: string; avatar_url: string | null
+  pix_key: string | null; phone: string | null; created_at: string
+}
 
 export type Room = {
   id: string; slug: string; name: string
-  admin_name: string; admin_pix: string | null; created_at: string
+  admin_id: string | null; admin_pix: string | null; created_at: string
 }
 
 export type Bet = {
   id: string; room_id: string; title: string
-  bet_type: BetType; status: 'open' | 'resolved'; created_at: string
-  outcomes?: Outcome[]
+  bet_type: BetType; status: 'open' | 'resolved'
+  created_by: string | null; created_at: string
 }
 
 export type Outcome = {
@@ -38,24 +41,31 @@ export type Outcome = {
 }
 
 export type Pick = {
-  id: string; outcome_id: string; player_name: string
+  id: string; outcome_id: string
+  user_id: string | null; player_name: string
   player_pix: string | null; side: string | null
   amount: number; payout: number | null; created_at: string
+}
+
+export type Debt = {
+  id: string; from_user_id: string; to_user_id: string
+  amount: number; bet_id: string | null
+  settled: boolean; created_at: string
+  from_profile?: Profile; to_profile?: Profile
 }
 
 export function calcOdds(pool_sim: number, pool_nao: number) {
   const total = pool_sim + pool_nao
   if (total === 0) return { sim: 2.0, nao: 2.0, pct_sim: 50 }
-  const net = total * (1 - HOUSE_EDGE)
-  const sim = pool_sim > 0 ? net / pool_sim : 99
-  const nao = pool_nao > 0 ? net / pool_nao : 99
+  const sim = pool_sim > 0 ? total / pool_sim : 99
+  const nao = pool_nao > 0 ? total / pool_nao : 99
   const pct_sim = Math.round((pool_sim / total) * 100)
   return { sim: +sim.toFixed(2), nao: +nao.toFixed(2), pct_sim }
 }
 
 export function calcChoiceOdds(myPool: number, totalPool: number) {
   if (myPool === 0 || totalPool === 0) return 99
-  return +((totalPool * (1 - HOUSE_EDGE)) / myPool).toFixed(2)
+  return +(totalPool / myPool).toFixed(2)
 }
 
 export function generateSlug() {
